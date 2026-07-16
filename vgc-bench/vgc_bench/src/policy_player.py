@@ -9,6 +9,7 @@ Also implements the battle state embedding used for policy observations.
 import asyncio
 import io
 import json
+import random
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,6 +69,7 @@ class PolicyPlayer(Player):
         policy: BasePolicy | None = None,
         accept_all_formats: bool = False,
         deterministic: bool = False,
+        blunder: float = 0.0,
         invitee: str | None = None,
         *args: Any,
         **kwargs: Any,
@@ -83,6 +85,9 @@ class PolicyPlayer(Player):
                 correct regulation's teams are yielded.
             deterministic: If True, always pick the highest-probability action
                 instead of sampling from the distribution.
+            blunder: Probability in [0, 1] of ignoring the policy on a given
+                turn and playing a uniformly random legal move instead. Used to
+                weaken the agent for lower difficulty levels; 0.0 disables it.
             *args: Additional arguments for Player base class.
             **kwargs: Additional keyword arguments for Player base class.
         """
@@ -90,6 +95,7 @@ class PolicyPlayer(Player):
         self.policy = policy
         self._accept_all_formats = accept_all_formats
         self.deterministic = deterministic
+        self.blunder = blunder
         self.invitee = invitee
 
     async def _handle_challenge_request(self, split_message: list[str]):
@@ -215,6 +221,10 @@ class PolicyPlayer(Player):
         assert isinstance(self.policy, MaskedActorCriticPolicy)
         if battle._wait:
             return DefaultBattleOrder()
+        if self.blunder and random.random() < self.blunder:
+            # Deliberately play a random legal move to weaken the agent for
+            # lower difficulty levels.
+            return self.choose_random_move(battle)
         obs = self.embed_battle(battle, fake_rating=2000)
         mask = np.array(DoublesEnv.get_action_mask(battle))
         with torch.no_grad():

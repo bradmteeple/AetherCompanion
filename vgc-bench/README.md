@@ -104,6 +104,38 @@ results = asyncio.run(cross_evaluate([random_player, mbp_player, sh_player], n_c
 print(results)
 ```
 
+## 🎯 Difficulty Levels
+
+[play.py](vgc_bench/play.py) exposes three tunable opponent strengths via `--level`, so you can practice against a bot calibrated to a target skill archetype:
+
+| Level | Archetype | How it plays |
+|-------|-----------|--------------|
+| 1 | Day-2 player at a regional championship | Rule-based `SimpleHeuristicsPlayer` — solid fundamentals (type matchups, switching) but exploitable. Needs **no trained model**, so it works for any regulation (including Reg M-B) immediately. |
+| 2 | Regional champion | The trained policy sampled stochastically with a small blunder rate, on randomly chosen teams. |
+| 3 | World champion | The trained policy at full strength (greedy) on featured/meta teams, always loading the **latest** checkpoint. |
+
+```bash
+# Practice against a Level 1 opponent in Reg M-B (no model needed)
+python -m vgc_bench.play --username <name> --reg mb --level 1
+
+# Level 3 (downloads the published BC model if you have no local checkpoint)
+python -m vgc_bench.play --username <name> --reg mb --level 3
+```
+
+The strength tiers are defined in [vgc_bench/src/levels.py](vgc_bench/src/levels.py) (`Level`, `LEVEL_CONFIGS`, `make_opponent`) so other entry points can build a tiered opponent with one call. Level weakening reuses existing mechanisms only: player class (heuristic vs policy), the `deterministic` flag, a `blunder` rate (random-legal move probability, implemented via poke-env's `choose_random_move`), and team quality (`prefer_featured`).
+
+### Self-improving Level 3 (learns from your games)
+
+Level 3 is designed to get **stronger the more you play it**, by learning to exploit how *you* play. It always loads the newest checkpoint in its saves directory, so the loop below simply appends stronger checkpoints between sessions using the existing BC + PSRO-Exploiter pipeline:
+
+1. **Capture** your games against the bot as Showdown logs with open team sheets into `battle_logs/logs_<format>.json` (same format [scrape_logs.py](vgc_bench/scrape_logs.py) produces: `{battle_id: [uploadtime, raw_log]}`).
+2. **Convert** them to trajectories: `python -m vgc_bench.logs2trajs` → `trajs/`.
+3. **Model your play**: `python -m vgc_bench.pretrain` behavior-clones a policy that imitates you.
+4. **Exploit it**: `python -m vgc_bench.train --exploiter …` trains the Level 3 policy to beat that model of you, saving a new, higher-numbered checkpoint.
+5. Next session, Level 3 auto-loads that checkpoint — now tuned to counter your tendencies. Repeat to compound.
+
+> Requires a CUDA GPU and the ML extras (`pip install .[dev]`). Steps 2–4 are existing, tested entry points; automating the full loop (capture + orchestration) is tracked as the next step.
+
 ## 📊 Evaluation
 
 - [eval.py](vgc_bench/eval.py) runs the cross-play evaluation, performance test, generalization test, and ranking algorithm as described in our paper (see above)
