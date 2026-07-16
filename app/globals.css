@@ -1,0 +1,74 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f4f6fb;
+  color: #1a1d29;
+  line-height: 1.5;
+}
+
+/* Shared top navigation */
+.nav {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  background: #2b2f42;
+}
+
+.nav-link {
+  color: #e6e9f5;
+  text-decoration: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.nav-link:hover {
+  background: #3d4260;
+}
+
+/* Page container */
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+.page-title {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.page-text {
+  color: #555b70;
+}
+
+/* Home page buttons */
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.button {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 1.5rem 1rem;
+  background: #4a56e2;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.button:hover {
+  background: #3a45c4;
+}
