@@ -126,15 +126,22 @@ The strength tiers are defined in [vgc_bench/src/levels.py](vgc_bench/src/levels
 
 ### Self-improving Level 3 (learns from your games)
 
-Level 3 is designed to get **stronger the more you play it**, by learning to exploit how *you* play. It always loads the newest checkpoint in its saves directory, so the loop below simply appends stronger checkpoints between sessions using the existing BC + PSRO-Exploiter pipeline:
+Level 3 is designed to get **stronger the more you play it**, by learning to exploit how *you* play. It always loads the newest checkpoint in its saves directory, so appending stronger checkpoints between sessions makes the opponent you face next tuned to counter your tendencies.
 
-1. **Capture** your games against the bot as Showdown logs with open team sheets into `battle_logs/logs_<format>.json` (same format [scrape_logs.py](vgc_bench/scrape_logs.py) produces: `{battle_id: [uploadtime, raw_log]}`).
-2. **Convert** them to trajectories: `python -m vgc_bench.logs2trajs` → `trajs/`.
-3. **Model your play**: `python -m vgc_bench.pretrain` behavior-clones a policy that imitates you.
-4. **Exploit it**: `python -m vgc_bench.train --exploiter …` trains the Level 3 policy to beat that model of you, saving a new, higher-numbered checkpoint.
-5. Next session, Level 3 auto-loads that checkpoint — now tuned to counter your tendencies. Repeat to compound.
+[improve.py](vgc_bench/improve.py) runs one self-improvement pass end to end, orchestrating the existing BC + PSRO-Exploiter pipeline:
 
-> Requires a CUDA GPU and the ML extras (`pip install .[dev]`). Steps 2–4 are existing, tested entry points; automating the full loop (capture + orchestration) is tracked as the next step.
+```bash
+# 1. Put your games against the bot in battle_logs/logs_<format>.json
+#    (same shape scrape_logs.py produces: {battle_id: [uploadtime, raw_log]}, OTS).
+# 2. Learn from them:
+python -m vgc_bench.improve --reg mb --run_id 1 --total_steps 983040
+# 3. Face the improved Level 3 (note --method bc_ex):
+python -m vgc_bench.play --username <name> --reg mb --level 3 --method bc_ex
+```
+
+Under the hood it chains: `logs2trajs` (your logs → trajectories) → `pretrain` (behavior-clones a model of *you*) → installs that model as the exploiter's fixed opponent (`-1.zip`) → `train --exploiter` (trains a policy to beat the model of you). Run it again after more games to compound. Use `--dry-run` to preview the exact commands and paths without executing.
+
+> Requires a CUDA GPU, the ML extras (`pip install .[dev]`), and a running pokemon-showdown server (same as `train.py`). `improve.py` consumes whatever is in `battle_logs/`; collecting your games there (e.g. via saved Showdown replays scraped with [scrape_logs.py](vgc_bench/scrape_logs.py), filtered to your username) is the one manual step, since replay capture depends on your play setup.
 
 ## 📊 Evaluation
 
