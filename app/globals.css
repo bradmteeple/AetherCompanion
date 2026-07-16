@@ -727,6 +727,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  position: relative;
+}
+
+@media (min-width: 960px) {
+  /* Slide the panel (and the "?" toggle / reasoning box) left into the empty
+     gutter beside the centered 900px container, scaling with the gutter width so
+     it lands ~1rem from the viewport's left edge. `left` (not margin) keeps the
+     battle column in place. */
+  .ai-panel {
+    left: calc((900px - 100vw) / 2 + 1rem);
+  }
 }
 
 .ai-panel--open {
