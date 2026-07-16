@@ -539,3 +539,94 @@ body {
   font-size: 0.8rem;
   color: #9fb6d6;
 }
+
+/* Password gate / lock screen */
+.auth-overlay {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 2.25rem 1.75rem;
+  border-radius: 16px;
+  background: rgba(10, 15, 36, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(123, 91, 255, 0.35);
+  box-shadow: 0 20px 60px rgba(5, 6, 15, 0.55);
+  text-align: center;
+}
+
+.auth-logo {
+  font-size: clamp(1.9rem, 8vw, 2.6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  background: linear-gradient(90deg, #00e0ff 0%, #7b5bff 50%, #ff4ecd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.auth-subtitle {
+  color: #aeb8e8;
+  font-size: 0.95rem;
+  margin-top: -0.25rem;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(123, 91, 255, 0.4);
+  background: rgba(5, 6, 15, 0.6);
+  color: #f5f7ff;
+  font: inherit;
+  font-size: 1rem;
+  outline: none;
+  transition: border 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-input:focus {
+  border-color: rgba(123, 91, 255, 0.8);
+  box-shadow: 0 0 0 3px rgba(123, 91, 255, 0.25);
+}
+
+.auth-input::placeholder {
+  color: #7f8bbf;
+}
+
+.auth-error {
+  color: #ff8ba7;
+  font-size: 0.85rem;
+  margin-top: -0.35rem;
+}
+
+.auth-button {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(123, 91, 255, 0.6);
+  background: rgba(123, 91, 255, 0.25);
+  color: #ffffff;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.auth-button:hover {
+  background: rgba(123, 91, 255, 0.4);
+  box-shadow: 0 0 30px rgba(123, 91, 255, 0.4);
+  transform: translateY(-1px);
+}
