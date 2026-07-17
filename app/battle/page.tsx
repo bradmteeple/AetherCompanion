@@ -13,11 +13,13 @@ export default function BattlePage() {
   const [runningLevel, setRunningLevel] = useState(2);
   const [snapshot, setSnapshot] = useState<BattleSnapshot | null>(null);
   const [battleKey, setBattleKey] = useState(0);
+  const [started, setStarted] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
   const logEndRef = useRef<HTMLDivElement | null>(null);
   const chooseRef = useRef<((choice: string) => void) | null>(null);
 
   useEffect(() => {
+    if (!started) return; // wait for the user to press Start Battle
     let controller: import("./lib/engine").BattleController | null = null;
     let cancelled = false;
     setSnapshot(null);
@@ -34,15 +36,16 @@ export default function BattlePage() {
       controller?.destroy();
       chooseRef.current = null;
     };
-  }, [battleKey, runningFormat, runningLevel]);
+  }, [battleKey, runningFormat, runningLevel, started]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [snapshot?.log.length]);
 
-  const newBattle = useCallback(() => {
+  const startBattle = useCallback(() => {
     setRunningFormat(selectedFormat);
     setRunningLevel(selectedLevel);
+    setStarted(true);
     setBattleKey((k) => k + 1);
   }, [selectedFormat, selectedLevel]);
 
@@ -65,8 +68,8 @@ export default function BattlePage() {
             {f.label}
           </button>
         ))}
-        <button className="battle-btn" onClick={newBattle}>
-          ↻ New Battle
+        <button className="battle-btn" onClick={startBattle}>
+          {started ? "↻ New Battle" : "▶ Start Battle"}
         </button>
       </div>
 
@@ -104,7 +107,9 @@ export default function BattlePage() {
         <p className="format-note">* {FORMATS[selectedFormat].note}</p>
       )}
 
-      {!snapshot ? (
+      {!started ? (
+        <div className="battle-loading">Choose a format and AI level above, then press ▶ Start Battle.</div>
+      ) : !snapshot ? (
         <div className="battle-loading">Generating teams and starting the battle…</div>
       ) : (
         <div className="battle-layout">
@@ -131,7 +136,7 @@ export default function BattlePage() {
                 <div ref={logEndRef} />
               </div>
 
-              <ChoiceArea snapshot={snapshot} choose={choose} onNewBattle={newBattle} />
+              <ChoiceArea snapshot={snapshot} choose={choose} onNewBattle={startBattle} />
             </div>
           </div>
         </div>
