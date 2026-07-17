@@ -877,11 +877,17 @@ body {
   position: relative;
 }
 
-.custom-team-panel {
+.custom-team-stack {
   position: absolute;
   top: 0;
   right: min(0.5rem, calc((900px - 100vw) / 2 + 0.25rem));
   width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.custom-team-panel {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
@@ -917,15 +923,6 @@ body {
   font-size: 0.8rem;
 }
 
-.ct-doubles {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.82rem;
-  color: #cdd5ff;
-  cursor: pointer;
-}
-
 .ct-error {
   font-size: 0.76rem;
   color: #ff8ba7;
@@ -957,7 +954,7 @@ body {
   .ai-panel--open {
     width: 100%;
   }
-  .custom-team-panel {
+  .custom-team-stack {
     position: static;
     width: 100%;
     margin-bottom: 1rem;
