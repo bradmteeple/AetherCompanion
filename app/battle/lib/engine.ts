@@ -10,8 +10,10 @@ import { TeamGenerators } from "@pkmn/randoms";
 import { ReasoningAI, AdaptiveAI } from "./ai";
 import { describeLine, emptyBoard, type BoardState, type StatBlock } from "./protocol";
 import { FORMATS, type FormatDef, type FormatKey } from "./formats";
+import { installChampionsStats } from "./champions-stats";
 
 Teams.setGeneratorFactory(TeamGenerators);
+installChampionsStats(); // Reg M-B (Champions): 1 EV = +1 stat; other formats unchanged.
 
 export interface MoveOption {
   slot: number; // 1-based move index ("move 1")

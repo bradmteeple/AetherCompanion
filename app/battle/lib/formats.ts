@@ -90,7 +90,7 @@ export const FORMATS: Record<FormatKey, FormatDef> = {
     teamPreview: true,
     teamSize: 4,
     packedTeams: [REGMB_C, REGMB_D],
-    note: "Real Reg M-B ruleset: Lv 50 doubles, Open Team Sheets, no Mythicals or Restricted Legendaries, bring 6 pick 4. Mega Evolution and Champions-only Pokémon aren't in the in-browser Gen 9 engine, so those are unavailable.",
+    note: "Real Reg M-B ruleset: Lv 50 doubles, Open Team Sheets, no Mythicals or Restricted Legendaries, bring 6 pick 4. Champions training — each EV adds +1 to that stat (IVs unused). Mega Evolution and Champions-only Pokémon aren't in the in-browser Gen 9 engine, so those are unavailable.",
   },
 };
 
