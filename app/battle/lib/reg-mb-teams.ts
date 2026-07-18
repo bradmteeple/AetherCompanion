@@ -19,22 +19,23 @@ const TRICK_ROOM =
   "Hatterene||LifeOrb|MagicBounce|ExpandingForce,DazzlingGleam,MysticalFire,TrickRoom|Quiet|32,,,32,,||,,,,,0||50|]" +
   "Indeedee-F||PsychicSeed|PsychicSurge|FollowMe,TrickRoom,DazzlingGleam,HelpingHand|Sassy|32,,,,32,||,,,,,0||50|]" +
   "Ursaluna||FlameOrb|Guts|Facade,HeadlongRush,Crunch,Protect|Brave|32,32,,,,||,,,,,0||50|]" +
-  "Kingambit||AssaultVest|Defiant|KowtowCleave,SuckerPunch,IronHead,LowKick|Brave|32,32,,,,||,,,,,0||50|]" +
+  "Gardevoir||Gardevoirite|Trace|HyperVoice,Psychic,DazzlingGleam,Protect|Modest|32,,,32,,||||50|]" +
   "Amoonguss||RockyHelmet|Regenerator|Spore,RagePowder,PollenPuff,Protect|Sassy|32,,,,32,||,,,,,0||50|";
 
 const TAILWIND =
   "Tornadus||FocusSash|Prankster|BleakwindStorm,Tailwind,Taunt,Protect|Timid|,,,32,,32||||50|]" +
-  "Archaludon||PowerHerb|Stamina|ElectroShot,FlashCannon,DracoMeteor,BodyPress|Modest|32,,,32,,||||50|]" +
+  "Baxcalibur||Baxcalibrite|ThermalExchange|GlaiveRush,IcicleSpear,SwordsDance,Protect|Adamant|,32,,,,32||||50|]" +
   "Ursaluna-Bloodmoon||LifeOrb|MindsEye|BloodMoon,EarthPower,HyperVoice,Protect|Modest|32,,,32,,||,,,,,0||50|]" +
   "Rillaboom||MiracleSeed|GrassySurge|GrassyGlide,FakeOut,HighHorsepower,Protect|Adamant|,32,,,,32||||50|]" +
   "Flutter Mane||BoosterEnergy|Protosynthesis|Moonblast,ShadowBall,IcyWind,Protect|Timid|,,,32,,32||||50|]" +
   "Iron Hands||AssaultVest|QuarkDrive|FakeOut,WildCharge,DrainPunch,IcePunch|Adamant|32,32,,,,||||50|";
 
-// Imported Pokémon Champions teams. NOTE: these are built around Mega Evolution
-// (Swampertite / Aerodactylite / Charizardite Y / Floettite) and Floette-Eternal — mechanics
-// the Gen 9 engine this app runs on does NOT support. The battles still run, but the Mega
-// Stones are inert (no Pokémon Mega Evolves) and Floette-Eternal stays in its base form, so
-// these teams play weaker than their real Champions versions. Kept verbatim by request.
+// Imported Pokémon Champions teams, built around Mega Evolution. Mega Evolution IS now
+// supported (see champions-stats.ts / the engineFormat unbans in formats.ts), so the
+// Swampertite / Aerodactylite / Charizardite Y stones now work — those Pokémon Mega Evolve in
+// battle. Two quirks remain from the Gen 9 engine: "Floettite" isn't a real stone, so
+// Floette-Eternal keeps its base form (no Floette mega exists), and a few movepool entries are
+// out-of-era (the lenient battle stream runs them anyway). Kept otherwise verbatim by request.
 const RAIN_MEGA_SWAMPERT =
   "Swampert||Swampertite|Torrent|WaveCrash,Earthquake,IcePunch,Protect|Adamant|2,32,,,,32||||50|]" +
   "Pelipper||FocusSash|Drizzle|WeatherBall,Hurricane,Tailwind,Protect|Modest|2,,,32,,32||||50|]" +
@@ -53,7 +54,7 @@ const SUN_MEGA_CHARIZARD =
 
 export const REG_MB_TEAMS: NamedTeam[] = [
   { id: "trick-room", name: "Trick Room — Torkoal / Hatterene", packed: TRICK_ROOM },
-  { id: "tailwind", name: "Tailwind — Tornadus / Archaludon", packed: TAILWIND },
+  { id: "tailwind", name: "Tailwind — Tornadus / Baxcalibur", packed: TAILWIND },
   { id: "rain-swampert", name: "Rain — Pelipper / Swampert (Mega)", packed: RAIN_MEGA_SWAMPERT },
   { id: "sun-charizard", name: "Sun — Charizard Y / Aerodactyl (Mega)", packed: SUN_MEGA_CHARIZARD },
 ];

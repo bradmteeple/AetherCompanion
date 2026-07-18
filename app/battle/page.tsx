@@ -574,8 +574,13 @@ function TurnPanel({ snapshot, choose }: { snapshot: BattleSnapshot; choose: (c:
 
   const [decisions, setDecisions] = useState<(string | null)[]>(initDecisions);
   const [tera, setTera] = useState(false);
+  const [mega, setMega] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
   const submitted = useRef(false);
+
+  // Battle gimmick appended to a move choice. Mega and Tera are mutually exclusive — the engine
+  // never offers both on one Pokémon (a Mega-Stone holder can't Terastallize).
+  const gimmick = mega ? " mega" : tera ? " terastallize" : "";
 
   const currentSlot = decisions.findIndex((d) => d === null);
   const usedBench = decisions
@@ -593,19 +598,19 @@ function TurnPanel({ snapshot, choose }: { snapshot: BattleSnapshot; choose: (c:
   const setSlot = (value: string) => {
     setPending(null);
     setTera(false);
+    setMega(false);
     setDecisions((cur) => cur.map((d, i) => (i === currentSlot ? value : d)));
   };
 
   const clickMove = (m: MoveOption) => {
     const base = `move ${m.slot}`;
-    const suffix = tera ? " terastallize" : "";
     if (!needsTarget(m.target, doubles)) {
-      setSlot(base + suffix);
+      setSlot(base + gimmick);
       return;
     }
     const options = targetOptions(m.target, currentSlot, snapshot.board);
     if (options.length <= 1) {
-      setSlot(base + (options[0] ? ` ${options[0].value}` : "") + suffix);
+      setSlot(base + (options[0] ? ` ${options[0].value}` : "") + gimmick);
       return;
     }
     setPending({ slotIndex: currentSlot, moveSlot: m.slot, moveName: m.name, options });
@@ -615,6 +620,7 @@ function TurnPanel({ snapshot, choose }: { snapshot: BattleSnapshot; choose: (c:
     submitted.current = false;
     setPending(null);
     setTera(false);
+    setMega(false);
     setDecisions(initDecisions);
   };
 
@@ -655,7 +661,7 @@ function TurnPanel({ snapshot, choose }: { snapshot: BattleSnapshot; choose: (c:
               <button
                 key={o.value}
                 className="target-btn"
-                onClick={() => setSlot(`move ${pending.moveSlot} ${o.value}${tera ? " terastallize" : ""}`)}
+                onClick={() => setSlot(`move ${pending.moveSlot} ${o.value}${gimmick}`)}
               >
                 {o.label}
               </button>
@@ -673,6 +679,12 @@ function TurnPanel({ snapshot, choose }: { snapshot: BattleSnapshot; choose: (c:
                 <label className="tera-toggle">
                   <input type="checkbox" checked={tera} onChange={(e) => setTera(e.target.checked)} />
                   Terastallize
+                </label>
+              )}
+              {active.canMega && (
+                <label className="tera-toggle mega-toggle">
+                  <input type="checkbox" checked={mega} onChange={(e) => setMega(e.target.checked)} />
+                  Mega Evolve
                 </label>
               )}
               <div className="move-grid">

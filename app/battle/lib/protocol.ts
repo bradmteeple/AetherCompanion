@@ -100,6 +100,18 @@ export function describeLine(line: string, board: BoardState): string | null {
       const { side, name } = setActive(parts[1], parts[3]);
       return `${who(side)} ${name} was revealed!`;
     }
+    case "detailschange":
+    case "-formechange": {
+      // Mega Evolution / forme change: rename the on-field mon so its card + sprite update.
+      const { side, slot } = parseIdent(parts[1]);
+      const newName = (parts[2] || "").split(",")[0].trim();
+      if (board[side][slot] && newName) board[side][slot] = { ...board[side][slot]!, name: newName };
+      return null;
+    }
+    case "-mega": {
+      const { side, name } = parseIdent(parts[1]);
+      return `${side === "p1" ? name : "Foe " + name} Mega Evolved!`;
+    }
     case "move": {
       const { side, name } = parseIdent(parts[1]);
       return `${side === "p1" ? name : "Foe " + name} used ${parts[2]}!`;

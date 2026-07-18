@@ -661,9 +661,16 @@ body {
   align-items: center;
   gap: 0.4rem;
   margin-bottom: 0.6rem;
+  margin-right: 0.9rem;
   font-size: 0.85rem;
   color: #cdd5ff;
   cursor: pointer;
+}
+
+/* Mega Evolve reuses the Tera toggle layout with a distinct accent. */
+.mega-toggle {
+  color: #ff9de2;
+  font-weight: 600;
 }
 
 .target-grid {

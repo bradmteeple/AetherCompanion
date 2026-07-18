@@ -7,10 +7,10 @@
 //   Restricted Legendary class (and dropping the "up to two" allowance) — Mythicals
 //   are already banned by Flat Rules. That reproduces Reg M-B's real structure on the
 //   Gen 9 engine: Lv 50 doubles, Open Team Sheets, Species/Item/Nickname clauses,
-//   bring 6 pick 4. What it can't reproduce is Mega Evolution and the Champions-only
-//   Pokémon (Reg M-B is a Pokémon Champions format; that data isn't in @pkmn/sim) —
-//   the UI note says so. VGC has no team generator, so each format ships legal,
-//   pre-validated sample teams (checked with the real TeamValidator).
+//   bring 6 pick 4, and Mega Evolution (the Mega Stones + formes the teams use are unbanned
+//   below). What it can't reproduce is Champions-only Pokémon (that data isn't in @pkmn/sim).
+//   The UI note says so. VGC has no team generator, so each format ships pre-packed sample
+//   teams (see reg-mb-teams.ts).
 
 import { REG_MB_PACKED } from "./reg-mb-teams";
 
@@ -68,14 +68,16 @@ export const FORMATS: Record<FormatKey, FormatDef> = {
   vgcregmb: {
     key: "vgcregmb",
     label: "VGC 2026 Reg M-B",
-    // Reg I + hard ban on all Restricted Legendaries (Reg I allowed two). No space
-    // after the comma: the battle engine splits @@@ rules on "," without trimming.
-    engineFormat: "gen9vgc2025regi@@@!Limit Two Restricted,-Restricted Legendary,!EV Limit,EV Limit = 66",
+    // Reg I + hard ban on all Restricted Legendaries (Reg I allowed two), the Champions 66-EV
+    // budget, and Mega Evolution re-enabled by unbanning the Mega Stones + formes the teams use.
+    // No space after commas: the battle engine splits @@@ rules on "," without trimming.
+    engineFormat:
+      "gen9vgc2025regi@@@!Limit Two Restricted,-Restricted Legendary,!EV Limit,EV Limit = 66,+Gardevoirite,+Gardevoir-Mega,+Baxcalibrite,+Baxcalibur-Mega,+Swampertite,+Swampert-Mega,+Aerodactylite,+Aerodactyl-Mega,+Charizardite Y,+Charizard-Mega-Y",
     gametype: "doubles",
     teamPreview: true,
     teamSize: 4,
     packedTeams: REG_MB_PACKED,
-    note: "Real Reg M-B ruleset: Lv 50 doubles, Open Team Sheets, no Mythicals or Restricted Legendaries, bring 6 pick 4. Champions training — 66 EV points per Pokémon (max 32 in one stat), each adds +1 to that stat (IVs unused). Mega Evolution and Champions-only Pokémon aren't in the in-browser Gen 9 engine, so those are unavailable.",
+    note: "Real Reg M-B ruleset: Lv 50 doubles, Open Team Sheets, no Mythicals or Restricted Legendaries, bring 6 pick 4. Champions training — 66 EV points per Pokémon (max 32 in one stat), each adds +1 to that stat (IVs unused). Mega Evolution is enabled: a Pokémon holding its Mega Stone can Mega Evolve once per battle. Champions-only Pokémon aren't in the in-browser Gen 9 engine.",
   },
 };
 
