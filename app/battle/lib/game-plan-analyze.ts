@@ -1,12 +1,14 @@
-// Derives Blue's PlanData from a run (best selection, learned Red threats, how Blue's team
-// wants to play). This pulls in the @pkmn dex/teams, so it's imported only from auto-engine.ts
-// (itself dynamically imported) — keeping the engine out of the Auto Battle page's initial load.
+// Derives Blue's PlanData from a run: best selection, best lead, what to do against Red's common
+// leads (via type matchups + Blue's tools), the general win condition, and Red's learned threats.
+// Pulls in the @pkmn dex/teams, so it's imported only from auto-engine.ts (a dynamic chunk),
+// keeping the engine out of the Auto Battle page's initial load.
 
 import "./node-shim"; // must precede any @pkmn import
 import { Dex, Teams, toID } from "@pkmn/sim";
-import type { PlanData, PlanThreat } from "./game-plan";
+import type { PlanData, PlanThreat, RedLeadPlan } from "./game-plan";
 
 type Book = Record<string, Record<string, number>>;
+type Stat = { combo: string; games: number; wins: number };
 
 export interface AnalyzeArgs {
   blueTeamPacked: string;
@@ -15,35 +17,52 @@ export interface AnalyzeArgs {
   blueWins: number;
   redWins: number;
   games: number;
-  combos: { combo: string; games: number; wins: number }[]; // sorted best-first by win rate
+  combos: Stat[]; // Blue selections, sorted best-first by win rate
+  blueLeads: Stat[]; // Blue's lead pairs, sorted best-first by win rate (wins = Blue wins)
+  redLeads: Stat[]; // Red lead pairs Blue faced, sorted by frequency (wins = Blue wins)
   book: Book; // Blue's learned model of Red (species id -> move id -> count)
 }
 
 interface MonInfo {
   species: string; // display name
+  types: string[];
   spe: number;
+  offense: number; // max(atk, spa) base stat
   hasTR: boolean;
   hasTW: boolean;
-  offense: number; // max(atk, spa) base stat
+  hasFakeOut: boolean;
+  hasRedirect: boolean;
 }
+
+const MIN_LEAD_GAMES = 20; // ignore lead stats without a real sample
 
 function unpackBlue(packed: string): MonInfo[] {
   const sets = Teams.unpack(packed) ?? [];
   return sets.map((s: any) => {
     const sp = Dex.species.get(s.species || s.name);
     const base = sp.baseStats ?? { atk: 0, spa: 0, spe: 0 };
-    const moveIds = (s.moves ?? []).map((m: string) => toID(m));
+    const ids = (s.moves ?? []).map((m: string) => toID(m));
     return {
       species: sp.name || s.species || s.name,
+      types: sp.types ?? [],
       spe: base.spe ?? 0,
-      hasTR: moveIds.includes("trickroom"),
-      hasTW: moveIds.includes("tailwind"),
       offense: Math.max(base.atk ?? 0, base.spa ?? 0),
+      hasTR: ids.includes("trickroom"),
+      hasTW: ids.includes("tailwind"),
+      hasFakeOut: ids.includes("fakeout"),
+      hasRedirect: ids.includes("followme") || ids.includes("ragepowder"),
     };
   });
 }
 
-// The strongest move (by base power) Blue saw a given Red species use.
+// Type-chart multiplier of an attacking type vs a defender's types (0 = immune).
+function typeEff(atkType: string, defTypes: string[]): number {
+  for (const t of defTypes) if (!Dex.getImmunity(atkType, t)) return 0;
+  let exp = 0;
+  for (const t of defTypes) exp += Dex.getEffectiveness(atkType, t);
+  return Math.pow(2, exp);
+}
+
 function strongestSeenMove(book: Book, speciesId: string): { move: string; bp: number } | null {
   const moves = book[speciesId];
   if (!moves) return null;
@@ -55,18 +74,61 @@ function strongestSeenMove(book: Book, speciesId: string): { move: string; bp: n
   return { move: m.name || bestMv, bp: m.basePower || 0 };
 }
 
+function winCondition(archetype: PlanData["archetype"]): string {
+  if (archetype === "Trick Room")
+    return "Land Trick Room and sweep with your slow, powerful attackers while Red is stuck moving last — protect the setter and re-set it as needed.";
+  if (archetype === "Tailwind")
+    return "Get Tailwind up turn 1 and use the speed lead to KO Red's threats before they move; press the advantage over its four turns.";
+  return "Trade efficiently — remove Red's biggest threats with super-effective hits and keep more Pokémon on the board.";
+}
+
+// How Blue should answer a specific Red lead: which brought mon checks each Red lead Pokémon by
+// type, plus any disruption / speed-control tools Blue has.
+function responseToRedLead(
+  redLead: string[],
+  pool: MonInfo[],
+  archetype: PlanData["archetype"],
+  threatIds: Set<string>
+): string {
+  const parts: string[] = [];
+  for (const redName of redLead) {
+    const redTypes = Dex.species.get(redName).types ?? [];
+    let bestMon: MonInfo | null = null;
+    let bestMult = 1;
+    for (const m of pool) {
+      const mult = m.types.reduce((mx, t) => Math.max(mx, typeEff(t, redTypes)), 0);
+      if (mult > bestMult) ((bestMult = mult), (bestMon = m));
+    }
+    const danger = threatIds.has(toID(redName)) ? " (their main threat)" : "";
+    parts.push(bestMon ? `${bestMon.species} answers ${redName}${danger}` : `focus ${redName}${danger} down`);
+  }
+  const extras: string[] = [];
+  const fake = pool.find((m) => m.hasFakeOut);
+  const redir = pool.find((m) => m.hasRedirect);
+  if (fake) extras.push(`${fake.species} Fake Out for tempo`);
+  if (redir) extras.push(`${redir.species} redirects to shield your setter`);
+  if (archetype === "Trick Room") extras.push("get Trick Room up first");
+  else if (archetype === "Tailwind") extras.push("Tailwind to out-speed them");
+  const body = parts.join("; ");
+  return extras.length ? `${body}. ${extras.join(", ")}.` : `${body}.`;
+}
+
+function bestStat(stats: Stat[]): Stat | null {
+  const sampled = stats.filter((s) => s.games >= MIN_LEAD_GAMES);
+  return sampled[0] ?? stats.slice().sort((a, b) => b.games - a.games)[0] ?? null;
+}
+
 export function analyzeBluePlan(a: AnalyzeArgs): PlanData {
   const decided = a.blueWins + a.redWins;
   const winPct = decided ? Math.round((a.blueWins / decided) * 100) : 0;
 
   // Best selection: highest win rate among reasonably-sampled picks, else the most-played.
-  const sampled = a.combos.filter((c) => c.games >= 20);
-  const best = sampled[0] ?? a.combos.slice().sort((x, y) => y.games - x.games)[0] ?? null;
+  const best = bestStat(a.combos);
   const selection = best ? best.combo.split(" + ") : [];
   const selectionWinPct = best && best.games ? Math.round((best.wins / best.games) * 100) : 0;
   const selectionGames = best ? best.games : 0;
 
-  // Blue team shape + which of the brought four (fallback: whole team) to build the lead from.
+  // Blue team shape + which of the brought four (fallback: whole team) to reason from.
   const team = unpackBlue(a.blueTeamPacked);
   const selSet = new Set(selection.map((n) => toID(n)));
   const brought = team.filter((m) => selSet.has(toID(m.species)));
@@ -102,16 +164,37 @@ export function analyzeBluePlan(a: AnalyzeArgs): PlanData {
   }
 
   // Red's biggest learned threats (Blue prioritizes KO-ing these).
-  const threats: PlanThreat[] = Object.keys(a.book)
+  const threatsRaw = Object.keys(a.book)
     .map((id) => {
       const seen = strongestSeenMove(a.book, id);
       const sp = Dex.species.get(id);
-      return { species: sp.name || id, move: seen?.move || "", bp: seen?.bp || 0 };
+      return { id, species: sp.name || id, move: seen?.move || "", bp: seen?.bp || 0 };
     })
     .filter((t) => t.bp > 0)
-    .sort((x, y) => y.bp - x.bp)
+    .sort((x, y) => y.bp - x.bp);
+  const threats: PlanThreat[] = threatsRaw.slice(0, 3).map((t) => ({ species: t.species, move: t.move }));
+  const threatIds = new Set(threatsRaw.slice(0, 4).map((t) => t.id));
+
+  // Blue's best-performing lead.
+  const bl = bestStat(a.blueLeads);
+  const bestLead =
+    bl && bl.games
+      ? { mons: bl.combo.split(" + "), winPct: Math.round((bl.wins / bl.games) * 100), games: bl.games }
+      : null;
+
+  // What to do against Red's most common leads (top 3 with a real sample).
+  const vsRedLeads: RedLeadPlan[] = a.redLeads
+    .filter((s) => s.games >= MIN_LEAD_GAMES)
     .slice(0, 3)
-    .map((t) => ({ species: t.species, move: t.move }));
+    .map((s) => {
+      const leadMons = s.combo.split(" + ");
+      return {
+        lead: leadMons,
+        winPct: s.games ? Math.round((s.wins / s.games) * 100) : 0,
+        games: s.games,
+        response: responseToRedLead(leadMons, pool, archetype, threatIds),
+      };
+    });
 
   return {
     blueTeam: a.blueTeamName,
@@ -121,10 +204,13 @@ export function analyzeBluePlan(a: AnalyzeArgs): PlanData {
     redWins: a.redWins,
     winPct,
     archetype,
+    winCondition: winCondition(archetype),
     selection,
     selectionWinPct,
     selectionGames,
     lead,
+    bestLead,
+    vsRedLeads,
     threats,
   };
 }
