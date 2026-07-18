@@ -45,24 +45,25 @@ const REGI_B =
   "Grimmsnarl||LightClay|Prankster|Reflect,LightScreen,SpiritBreak,ThunderWave|Careful|252,4,,,252,||||50|]" +
   "Garchomp||LifeOrb|RoughSkin|Earthquake,DragonClaw,RockSlide,Protect|Jolly|4,252,,,,252||||50|";
 
-// Distinct pool for the Reg M-B button. Champions training: 32 EV points per Pokémon,
-// each worth +1 to that stat (see engineFormat "EV Limit = 32" + champions-stats.ts).
-// Spreads put 16 into each of two key stats, matching the minus-Speed / offensive natures.
+// Distinct pool for the Reg M-B button. Champions training: 66 EV points per Pokémon (max 32
+// in a single stat), each worth +1 to that stat (see engineFormat "EV Limit = 66" +
+// champions-stats.ts). Spreads put 32 into each of two key stats (64 total), matching the
+// minus-Speed / offensive natures.
 const REGMB_C =
-  "Torkoal||Charcoal|Drought|Eruption,HeatWave,EarthPower,Protect|Quiet|16,,,16,,||,,,,,0||50|]" +
-  "Hatterene||LifeOrb|MagicBounce|ExpandingForce,DazzlingGleam,MysticalFire,TrickRoom|Quiet|16,,,16,,||,,,,,0||50|]" +
-  "Indeedee-F||PsychicSeed|PsychicSurge|FollowMe,TrickRoom,DazzlingGleam,HelpingHand|Sassy|16,,,,16,||,,,,,0||50|]" +
-  "Ursaluna||FlameOrb|Guts|Facade,HeadlongRush,Crunch,Protect|Brave|16,16,,,,||,,,,,0||50|]" +
-  "Kingambit||AssaultVest|Defiant|KowtowCleave,SuckerPunch,IronHead,LowKick|Brave|16,16,,,,||,,,,,0||50|]" +
-  "Amoonguss||RockyHelmet|Regenerator|Spore,RagePowder,PollenPuff,Protect|Sassy|16,,,,16,||,,,,,0||50|";
+  "Torkoal||Charcoal|Drought|Eruption,HeatWave,EarthPower,Protect|Quiet|32,,,32,,||,,,,,0||50|]" +
+  "Hatterene||LifeOrb|MagicBounce|ExpandingForce,DazzlingGleam,MysticalFire,TrickRoom|Quiet|32,,,32,,||,,,,,0||50|]" +
+  "Indeedee-F||PsychicSeed|PsychicSurge|FollowMe,TrickRoom,DazzlingGleam,HelpingHand|Sassy|32,,,,32,||,,,,,0||50|]" +
+  "Ursaluna||FlameOrb|Guts|Facade,HeadlongRush,Crunch,Protect|Brave|32,32,,,,||,,,,,0||50|]" +
+  "Kingambit||AssaultVest|Defiant|KowtowCleave,SuckerPunch,IronHead,LowKick|Brave|32,32,,,,||,,,,,0||50|]" +
+  "Amoonguss||RockyHelmet|Regenerator|Spore,RagePowder,PollenPuff,Protect|Sassy|32,,,,32,||,,,,,0||50|";
 
 const REGMB_D =
-  "Tornadus||FocusSash|Prankster|BleakwindStorm,Tailwind,Taunt,Protect|Timid|,,,16,,16||||50|]" +
-  "Archaludon||PowerHerb|Stamina|ElectroShot,FlashCannon,DracoMeteor,BodyPress|Modest|16,,,16,,||||50|]" +
-  "Ursaluna-Bloodmoon||LifeOrb|MindsEye|BloodMoon,EarthPower,HyperVoice,Protect|Modest|16,,,16,,||,,,,,0||50|]" +
-  "Rillaboom||MiracleSeed|GrassySurge|GrassyGlide,FakeOut,HighHorsepower,Protect|Adamant|,16,,,,16||||50|]" +
-  "Flutter Mane||BoosterEnergy|Protosynthesis|Moonblast,ShadowBall,IcyWind,Protect|Timid|,,,16,,16||||50|]" +
-  "Iron Hands||AssaultVest|QuarkDrive|FakeOut,WildCharge,DrainPunch,IcePunch|Adamant|16,16,,,,||||50|";
+  "Tornadus||FocusSash|Prankster|BleakwindStorm,Tailwind,Taunt,Protect|Timid|,,,32,,32||||50|]" +
+  "Archaludon||PowerHerb|Stamina|ElectroShot,FlashCannon,DracoMeteor,BodyPress|Modest|32,,,32,,||||50|]" +
+  "Ursaluna-Bloodmoon||LifeOrb|MindsEye|BloodMoon,EarthPower,HyperVoice,Protect|Modest|32,,,32,,||,,,,,0||50|]" +
+  "Rillaboom||MiracleSeed|GrassySurge|GrassyGlide,FakeOut,HighHorsepower,Protect|Adamant|,32,,,,32||||50|]" +
+  "Flutter Mane||BoosterEnergy|Protosynthesis|Moonblast,ShadowBall,IcyWind,Protect|Timid|,,,32,,32||||50|]" +
+  "Iron Hands||AssaultVest|QuarkDrive|FakeOut,WildCharge,DrainPunch,IcePunch|Adamant|32,32,,,,||||50|";
 
 export const FORMATS: Record<FormatKey, FormatDef> = {
   gen9randombattle: {
@@ -87,12 +88,12 @@ export const FORMATS: Record<FormatKey, FormatDef> = {
     label: "VGC 2026 Reg M-B",
     // Reg I + hard ban on all Restricted Legendaries (Reg I allowed two). No space
     // after the comma: the battle engine splits @@@ rules on "," without trimming.
-    engineFormat: "gen9vgc2025regi@@@!Limit Two Restricted,-Restricted Legendary,!EV Limit,EV Limit = 32",
+    engineFormat: "gen9vgc2025regi@@@!Limit Two Restricted,-Restricted Legendary,!EV Limit,EV Limit = 66",
     gametype: "doubles",
     teamPreview: true,
     teamSize: 4,
     packedTeams: [REGMB_C, REGMB_D],
-    note: "Real Reg M-B ruleset: Lv 50 doubles, Open Team Sheets, no Mythicals or Restricted Legendaries, bring 6 pick 4. Champions training — 32 EV points per Pokémon, each adds +1 to that stat (IVs unused). Mega Evolution and Champions-only Pokémon aren't in the in-browser Gen 9 engine, so those are unavailable.",
+    note: "Real Reg M-B ruleset: Lv 50 doubles, Open Team Sheets, no Mythicals or Restricted Legendaries, bring 6 pick 4. Champions training — 66 EV points per Pokémon (max 32 in one stat), each adds +1 to that stat (IVs unused). Mega Evolution and Champions-only Pokémon aren't in the in-browser Gen 9 engine, so those are unavailable.",
   },
 };
 

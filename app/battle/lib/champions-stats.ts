@@ -1,8 +1,9 @@
 // Pokémon Champions (VGC 2026 Reg M-B) stat formula.
 //
 // Champions redefines training: each EV is worth exactly +1 to that stat, with no IV term
-// and no level scaling. This mirrors the vendored Champions mod's statModify default (level-50)
-// branch (pokemon-showdown/data/mods/champions/scripts.ts):
+// and no level scaling. A Pokémon has 66 EV points total (enforced via "EV Limit = 66" in the
+// format) and at most 32 in any single stat (clamped below). This mirrors the vendored Champions
+// mod's statModify default (level-50) branch (pokemon-showdown/data/mods/champions/scripts.ts):
 //   HP:      stat = base + ev + 75
 //   others:  stat = base + ev + 20, then nature ±10% (16-bit truncated, exactly as Gen 9)
 //
@@ -36,7 +37,9 @@ export function installChampionsStats(): void {
 
     const tr = this.trunc.bind(this);
     const base = baseStats[statName];
-    const ev = (set.evs && set.evs[statName]) || 0;
+    // Champions: 66 EV points per Pokémon (total enforced by "EV Limit = 66"), and a single
+    // stat can hold at most 32 — clamp here so no stat ever gains more than +32.
+    const ev = Math.min((set.evs && set.evs[statName]) || 0, 32);
 
     if (statName === "hp") return base + ev + 75;
 
