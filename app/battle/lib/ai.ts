@@ -41,6 +41,13 @@ function cleanName(details: string): string {
   return (details || "").split(",")[0].trim();
 }
 
+// Inclusive integer range [start, end] (mirrors the RandomPlayerAI helper).
+function range(start: number, end: number): number[] {
+  const out: number[] = [];
+  for (let i = start; i <= end; i++) out.push(i);
+  return out;
+}
+
 function effWord(mult: number): string {
   if (mult === 0) return "no effect";
   if (mult >= 4) return `${mult}× super effective`;
@@ -119,13 +126,213 @@ export class ReasoningAI extends RandomPlayerAI {
     }
   }
 
+  // Fully handle the request (instead of the random base): switch out of losing matchups, pick
+  // the best replacement after a faint, take the best-scored move, and Mega Evolve when able.
   override receiveRequest(request: any) {
     this.reasons = [];
     this.slotCursor = 0;
     this.reqActiveLen = request?.active?.length ?? 1;
     this.beforeChoices(request);
-    super.receiveRequest(request);
+
+    if (request?.wait) {
+      // nothing to choose
+    } else if (request?.forceSwitch) {
+      this.chooseForceSwitch(request);
+    } else if (request?.teamPreview) {
+      this.choose(this.chooseTeamPreview(request.side.pokemon));
+    } else if (request?.active) {
+      this.chooseActions(request);
+    }
+
     if (this.reasons.length) this.report(this.turn, [...this.reasons]);
+  }
+
+  // Replacement after a faint (or any forced switch): send out the best matchup, not a random mon.
+  private chooseForceSwitch(request: any) {
+    const pokemon = request.side.pokemon;
+    const chosen: number[] = [];
+    const choices = (request.forceSwitch as any[]).map((mustSwitch, i) => {
+      if (!mustSwitch) return "pass";
+      const canSwitch = range(1, 6).filter(
+        (j) =>
+          pokemon[j - 1] &&
+          (j > request.forceSwitch.length || pokemon[i].reviving) &&
+          !chosen.includes(j) &&
+          !pokemon[j - 1].condition.endsWith(" fnt") === !pokemon[i].reviving
+      );
+      if (!canSwitch.length) return "pass";
+      const target = this.chooseSwitch(
+        undefined,
+        canSwitch.map((slot) => ({ slot, pokemon: pokemon[slot - 1] }))
+      );
+      chosen.push(target);
+      return `switch ${target}`;
+    });
+    this.choose(choices.join(", "));
+  }
+
+  // Per active slot: pivot out of a clearly-losing matchup, else take the best move — Mega
+  // Evolving when able (only one Pokémon may Mega Evolve per turn).
+  private chooseActions(request: any) {
+    const pokemon = request.side.pokemon;
+    const doubles = request.active.length > 1;
+    const chosen: number[] = [];
+    let megaUsed = false;
+
+    const choices = (request.active as any[]).map((active, i) => {
+      if (pokemon[i].condition.endsWith(" fnt") || pokemon[i].commanding) return "pass";
+
+      const list = active.moves ?? [];
+      const hasAlly = pokemon.length > 1 && !(pokemon[i ^ 1]?.condition ?? "").endsWith(" fnt");
+      let usable = range(1, list.length)
+        .filter((j) => !list[j - 1].disabled)
+        .map((j) => ({ slot: j, move: list[j - 1].move, target: list[j - 1].target, zMove: false }));
+      const withAlly = usable.filter((m) => m.target !== "adjacentAlly" || hasAlly);
+      usable = withAlly.length ? withAlly : usable;
+
+      // Build the base choice string with a valid default target (scoreMove overrides the target
+      // for foe-targeted attacks; ally/self targets are kept as-is).
+      const moves = usable.map((m) => {
+        let mv = `move ${m.slot}`;
+        if (doubles) {
+          if (["normal", "any", "adjacentFoe"].includes(m.target)) mv += ` ${1 + this.prng.random(2)}`;
+          else if (m.target === "adjacentAlly") mv += ` -${(i ^ 1) + 1}`;
+          else if (m.target === "adjacentAllyOrSelf") mv += hasAlly ? ` -${1 + this.prng.random(2)}` : ` -${i + 1}`;
+        }
+        return { choice: mv, move: m };
+      });
+
+      const canSwitch = range(1, 6).filter(
+        (j) =>
+          pokemon[j - 1] &&
+          !pokemon[j - 1].active &&
+          !chosen.includes(j) &&
+          !pokemon[j - 1].condition.endsWith(" fnt")
+      );
+      const switches = active.trapped ? [] : canSwitch;
+
+      // Voluntary pivot — only when switching is clearly the best play.
+      const pivot = this.shouldSwitch(i, moves, switches, pokemon);
+      if (pivot != null) {
+        chosen.push(pivot);
+        const sp = cleanName(pokemon[pivot - 1]?.details || "");
+        if (sp) this.reasons.push(`Rival AI pivots to ${sp}.`);
+        return `switch ${pivot}`;
+      }
+
+      if (!moves.length) {
+        if (switches.length) {
+          const t = this.chooseSwitch(
+            active,
+            switches.map((slot) => ({ slot, pokemon: pokemon[slot - 1] }))
+          );
+          chosen.push(t);
+          return `switch ${t}`;
+        }
+        return "pass";
+      }
+
+      const r = this.moveChoiceForSlot(active, moves, i);
+      this.reasons.push(r.rationale);
+      let choice = r.choice;
+      if (active.canMegaEvo && !megaUsed) {
+        choice += " mega";
+        megaUsed = true;
+      }
+      return choice;
+    });
+
+    this.choose(choices.join(", "));
+  }
+
+  private moveChoiceForSlot(
+    active: any,
+    moves: { choice: string; move: any }[],
+    slot: number
+  ): { choice: string; rationale: string } {
+    const doubles = this.reqActiveLen > 1;
+    const mySpecies = this.activeSp[this.side][slot] || "";
+    const myTypes = mySpecies ? Dex.species.get(mySpecies).types ?? [] : [];
+    const ctx: MoveCtx = { mySpecies, myTypes, foes: this.foes(), doubles };
+    const scored = moves.map(({ choice, move }) => this.scoreMove(choice, move, ctx));
+    const best = scored.slice().sort((a, b) => b.score - a.score)[0];
+    const mistake = this.mistakeRate > 0 && this.prng.random() < this.mistakeRate;
+    const pick = (mistake ? scored[this.prng.random(scored.length)] : best) ?? best;
+    return { choice: pick.choice, rationale: pick.rationale };
+  }
+
+  // Net type matchup of a Pokémon (by its types) vs the current foes: how hard it hits them minus
+  // how hard they hit it, using best super-effective coverage on each side.
+  protected matchup(myTypes: string[], foes: { types: string[] }[]): number {
+    let s = 0;
+    for (const f of foes) {
+      const off = myTypes.reduce((mx, t) => Math.max(mx, this.effectiveness(t, f.types)), 0);
+      const def = f.types.reduce((mx, t) => Math.max(mx, this.effectiveness(t, myTypes)), 0);
+      s += off - def;
+    }
+    return s;
+  }
+
+  // Best super-effective potential of an attacker's STAB types vs a defender (× STAB).
+  protected typeThreat(atkTypes: string[], defTypes: string[]): number {
+    return atkTypes.reduce((mx, t) => Math.max(mx, this.effectiveness(t, defTypes)), 0) * 1.5;
+  }
+
+  // Best super-effective multiplier the active mon can actually deal this turn from its moves.
+  protected bestOffense(
+    moves: { choice: string; move: any }[],
+    myTypes: string[],
+    foes: { types: string[] }[]
+  ): number {
+    let best = 0;
+    for (const { move } of moves) {
+      const mv = Dex.moves.get(move.move);
+      if (mv.category === "Status") continue;
+      const stab = myTypes.includes(mv.type) ? 1.5 : 1;
+      for (const f of foes) best = Math.max(best, this.effectiveness(mv.type, f.types) * stab);
+    }
+    return best;
+  }
+
+  // A pivot is the best play only when the active mon (slot i) is threatened by a super-effective
+  // hit, can't hit back hard this turn (walled), AND a benched mon hard-answers the threat —
+  // resisting it and threatening it back. Otherwise it stays in and attacks.
+  private shouldSwitch(
+    i: number,
+    moves: { choice: string; move: any }[],
+    switches: number[],
+    pokemon: any[]
+  ): number | null {
+    if (!switches.length) return null;
+    if (this.mistakeRate > 0 && this.prng.random() < this.mistakeRate) return null;
+    const foes = this.foes();
+    if (!foes.length) return null;
+    const myName = this.activeSp[this.side][i] || cleanName(pokemon[i]?.details || "");
+    const myTypes = myName ? Dex.species.get(myName).types ?? [] : [];
+
+    // In danger? (a foe threatens a super-effective STAB hit)
+    const worst = foes
+      .map((f) => ({ f, t: this.typeThreat(f.types, myTypes) }))
+      .sort((a, b) => b.t - a.t)[0];
+    if (!worst || worst.t < 2) return null; // safe → attacking is fine
+    // Can I hit back super-effectively this turn? Then stay and pressure.
+    if (this.bestOffense(moves, myTypes, foes) >= 2) return null;
+
+    // Walled + threatened: bring the best hard answer to the biggest threat, if we have one.
+    const threat = worst.f;
+    let bestSlot = -1;
+    let bestVal = 0;
+    for (const s of switches) {
+      const nm = cleanName(pokemon[s - 1]?.details || "");
+      const tt = nm ? Dex.species.get(nm).types ?? [] : [];
+      const incoming = this.typeThreat(threat.types, tt); // how hard the threat hits the switch-in
+      const pressure = tt.reduce((mx, t) => Math.max(mx, this.effectiveness(t, threat.types)), 0);
+      if (incoming <= 1 && pressure >= 2 && pressure - incoming > bestVal) {
+        bestVal = pressure - incoming;
+        bestSlot = s;
+      }
+    }
+    return bestSlot > 0 ? bestSlot : null;
   }
 
   /** Hook for subclasses to push a leading note before per-slot choices are made. */
@@ -217,10 +424,25 @@ export class ReasoningAI extends RandomPlayerAI {
     return pick.choice;
   }
 
+  // Pick the switch-in with the best type matchup vs the current foes (random when weakened).
   override chooseSwitch(active: any, switches: { slot: number; pokemon: any }[]): number {
-    const slot = super.chooseSwitch(active, switches);
-    const p = switches.find((s) => s.slot === slot);
-    const sp = p ? cleanName(p.pokemon.details) : "";
+    const foes = this.foes();
+    const skilled = this.mistakeRate === 0 || this.prng.random() >= this.mistakeRate;
+    let slot: number;
+    if (foes.length && skilled) {
+      let bestSlot = switches[0]?.slot ?? 0;
+      let bestScore = -Infinity;
+      for (const s of switches) {
+        const nm = cleanName(s.pokemon?.details || "");
+        const tt = nm ? Dex.species.get(nm).types ?? [] : [];
+        const sc = this.matchup(tt, foes);
+        if (sc > bestScore) ((bestScore = sc), (bestSlot = s.slot));
+      }
+      slot = bestSlot;
+    } else {
+      slot = super.chooseSwitch(active, switches);
+    }
+    const sp = cleanName(switches.find((s) => s.slot === slot)?.pokemon?.details || "");
     if (sp) this.reasons.push(`Rival AI sent out ${sp}.`);
     return slot;
   }
