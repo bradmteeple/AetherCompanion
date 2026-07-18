@@ -58,6 +58,8 @@ interface GameOutcome {
   result: GameResult;
   blueCombo: string | null; // sorted "A + B + C + D" of the four Blue brought, if captured
   redCombo: string | null;
+  blueLead: string | null; // sorted "A + B" of the two Blue sent out first
+  redLead: string | null; // sorted "A + B" of the two Red sent out first
   obsBlue: Book; // what Blue observed of Red this game (Red's moves)
   obsRed: Book; // what Red observed of Blue this game (Blue's moves)
 }
@@ -68,6 +70,12 @@ const P2_NAME = "Red";
 // "Pikachu, L50, M" -> "Pikachu"
 function cleanName(details: string): string {
   return (details || "").split(",")[0].trim();
+}
+
+// Sorted, order-independent key for a lead pair (both slots must be known).
+function pairKey(a: string | null, b: string | null): string | null {
+  const both = [a, b].filter((x): x is string => !!x);
+  return both.length < 2 ? null : both.slice().sort().join(" + ");
 }
 
 // A reasoning bot whose strength is set by `power` (0 = fully random, 1 = full heuristic, and up
@@ -154,6 +162,14 @@ function sortByWinRate(map: Map<string, { games: number; wins: number }>): Combo
     .sort((x, y) => rate(y) - rate(x) || y.wins - x.wins || x.combo.localeCompare(y.combo));
 }
 
+// By raw frequency — used for "the Red leads you face most", where sample size, not win rate,
+// decides which are worth calling out.
+function sortByGames(map: Map<string, { games: number; wins: number }>): ComboStat[] {
+  return Array.from(map.entries())
+    .map(([combo, { games, wins }]) => ({ combo, games, wins }))
+    .sort((x, y) => y.games - x.games || x.combo.localeCompare(y.combo));
+}
+
 interface ControllerOpts {
   onUpdate: (tally: Tally) => void;
   p1Team: string; // packed team Blue plays (from the Reg M-B registry)
@@ -177,6 +193,10 @@ export class AutoBattleController {
   // Per side: selection combo -> { games brought, games won }.
   private readonly comboBlue = new Map<string, { games: number; wins: number }>();
   private readonly comboRed = new Map<string, { games: number; wins: number }>();
+  // Lead pairs, keyed by the pair — `wins` is always counted from BLUE's perspective:
+  // blueLeads = Blue's own lead → Blue wins; redLeads = the Red lead Blue faced → Blue wins.
+  private readonly blueLeads = new Map<string, { games: number; wins: number }>();
+  private readonly redLeads = new Map<string, { games: number; wins: number }>();
   private lastEmit = 0;
 
   // The stream of the game currently in flight, so stop()/destroy() can tear it down and let
@@ -213,6 +233,8 @@ export class AutoBattleController {
     for (const k of Object.keys(this.bookRed)) delete this.bookRed[k];
     this.comboBlue.clear();
     this.comboRed.clear();
+    this.blueLeads.clear();
+    this.redLeads.clear();
     this.emit(true);
   }
 
@@ -237,6 +259,8 @@ export class AutoBattleController {
       redWins: this.counts.red,
       games: this.counts.games,
       combos: sortByWinRate(this.comboBlue),
+      blueLeads: sortByWinRate(this.blueLeads),
+      redLeads: sortByGames(this.redLeads),
       book: this.bookBlue,
     });
   }
@@ -271,6 +295,9 @@ export class AutoBattleController {
         // Each side's selection played one game; the winning side's selection also won it.
         this.recordCombo(this.comboBlue, o.blueCombo, o.result === "blue");
         this.recordCombo(this.comboRed, o.redCombo, o.result === "red");
+        // Lead pairs — both tracked from Blue's perspective (did Blue win?).
+        this.recordCombo(this.blueLeads, o.blueLead, o.result === "blue");
+        this.recordCombo(this.redLeads, o.redLead, o.result === "blue");
 
         // Learn: fold this game's observations into each side's persistent model.
         mergeBook(this.bookBlue, o.obsBlue);
@@ -332,12 +359,25 @@ export class AutoBattleController {
         `>player p2 ${JSON.stringify({ name: P2_NAME, team: this.p2Team })}`
     );
 
+    // First species to appear in each active slot = that side's lead (never overwritten).
+    const p1Lead: (string | null)[] = [null, null];
+    const p2Lead: (string | null)[] = [null, null];
+
     let result: GameResult = "tie";
     try {
       for await (const chunk of streams.omniscient) {
         if (this.stopped || this.destroyed) break;
         let done = false;
         for (const line of chunk.split("\n")) {
+          if (line.startsWith("|switch|") || line.startsWith("|drag|")) {
+            const parts = line.split("|"); // ["", "switch", "p1a: X", "Species, L50, M", ...]
+            const pos = parts[2] ?? "";
+            const sp = cleanName(parts[3] ?? "");
+            const slot = pos.charAt(2) === "b" ? 1 : 0;
+            if (pos.startsWith("p1") && p1Lead[slot] === null) p1Lead[slot] = sp;
+            else if (pos.startsWith("p2") && p2Lead[slot] === null) p2Lead[slot] = sp;
+            continue;
+          }
           if (line.startsWith("|win|")) {
             const winner = line.slice("|win|".length).trim();
             result = winner === P1_NAME ? "blue" : winner === P2_NAME ? "red" : "tie";
@@ -362,7 +402,15 @@ export class AutoBattleController {
         /* noop */
       }
     }
-    return { result, blueCombo: ai1.selectedCombo, redCombo: ai2.selectedCombo, obsBlue, obsRed };
+    return {
+      result,
+      blueCombo: ai1.selectedCombo,
+      redCombo: ai2.selectedCombo,
+      blueLead: pairKey(p1Lead[0], p1Lead[1]),
+      redLead: pairKey(p2Lead[0], p2Lead[1]),
+      obsBlue,
+      obsRed,
+    };
   }
 
   private snapshot(): Tally {
