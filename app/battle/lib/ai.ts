@@ -76,7 +76,10 @@ export class ReasoningAI extends RandomPlayerAI {
     report: (turn: number, reasons: string[]) => void,
     opts: { mistakeRate?: number; seed?: any } = {}
   ) {
-    super(playerStream, { move: 1.0, seed: opts.seed ?? null });
+    // mega: 1 => Mega Evolve whenever a held Mega Stone allows it (base RandomPlayerAI appends
+    // " mega" to our chosen move in receiveRequest). Gen 9 has no dynamax/ultra, so this only
+    // ever means "Mega Evolve when able".
+    super(playerStream, { move: 1.0, mega: 1, seed: opts.seed ?? null });
     this.report = report;
     this.mistakeRate = opts.mistakeRate ?? 0;
   }

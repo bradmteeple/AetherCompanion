@@ -28,6 +28,7 @@ export interface ActiveSlot {
   fainted: boolean;
   trapped: boolean;
   canTera: boolean;
+  canMega: boolean;
   moves: MoveOption[];
 }
 
@@ -439,7 +440,13 @@ export class BattleController {
         target: m.target ?? "normal",
         disabled: !!m.disabled,
       }));
-      return { fainted, trapped: !!a?.trapped, canTera: !!a?.canTerastallize, moves };
+      return {
+        fainted,
+        trapped: !!a?.trapped,
+        canTera: !!a?.canTerastallize,
+        canMega: !!a?.canMegaEvo,
+        moves,
+      };
     });
     this.snapshot.prompt = "move";
   }
