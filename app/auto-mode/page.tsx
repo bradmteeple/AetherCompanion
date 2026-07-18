@@ -1,8 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AutoBattleController, ComboStat, Tally } from "../battle/lib/auto-engine";
+import { encodePlan } from "../battle/lib/game-plan";
 import { REG_MB_TEAMS, teamById } from "../battle/lib/reg-mb-teams";
+
+// Blue needs a reasonable sample before its game plan is worth generating.
+const MIN_PLAN_GAMES = 50;
 
 const ZERO: Tally = {
   blue: 0,
@@ -24,6 +29,7 @@ export default function AutoMode() {
   const [tally, setTally] = useState<Tally>(ZERO);
   const [blueId, setBlueId] = useState(DEFAULT_BLUE);
   const [redId, setRedId] = useState(DEFAULT_RED);
+  const [planUrl, setPlanUrl] = useState<string | null>(null);
   const controllerRef = useRef<AutoBattleController | null>(null);
 
   // One controller per matchup. It stays alive across Stop/Start so power and learning persist
@@ -33,6 +39,7 @@ export default function AutoMode() {
     setReady(false);
     setRunning(false);
     setTally(ZERO);
+    setPlanUrl(null);
 
     (async () => {
       const { AutoBattleController } = await import("../battle/lib/auto-engine");
@@ -59,14 +66,22 @@ export default function AutoMode() {
   }, [blueId, redId]);
 
   const start = useCallback(() => {
+    setPlanUrl(null);
     controllerRef.current?.start();
     setRunning(true);
   }, []);
   const stop = useCallback(() => {
-    controllerRef.current?.stop();
+    const c = controllerRef.current;
+    c?.stop();
     setRunning(false);
-  }, []);
+    // Generate Blue's game plan from the run so far and expose the flowchart link.
+    if (c) {
+      const plan = c.bluePlan(teamById(blueId)?.name ?? "Blue", teamById(redId)?.name ?? "Red");
+      setPlanUrl(plan.games >= MIN_PLAN_GAMES ? `/auto-mode/plan?d=${encodePlan(plan)}` : null);
+    }
+  }, [blueId, redId]);
   const reset = useCallback(() => {
+    setPlanUrl(null);
     controllerRef.current?.reset();
   }, []);
 
@@ -141,6 +156,20 @@ export default function AutoMode() {
           {running ? "running…" : tally.games ? "stopped" : "idle"}
         </span>
       </div>
+
+      {!running && planUrl && (
+        <div className="auto-plan-cta">
+          <Link className="battle-btn auto-plan-link" href={planUrl} target="_blank" rel="noopener noreferrer">
+            🧭 View Blue&apos;s game plan →
+          </Link>
+          <span className="auto-plan-hint">Opens a shareable flowchart of how Blue played this matchup.</span>
+        </div>
+      )}
+      {!running && !planUrl && tally.games > 0 && tally.games < MIN_PLAN_GAMES && (
+        <p className="auto-plan-hint auto-plan-hint--center">
+          Run at least {MIN_PLAN_GAMES} games, then Stop to generate Blue&apos;s game plan.
+        </p>
+      )}
 
       <div className="auto-power">
         <PowerBar label={`Blue power · ${blueName}`} accent="blue" pct={bluePow} />

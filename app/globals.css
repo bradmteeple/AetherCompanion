@@ -1338,3 +1338,96 @@ body {
   color: #8b96c8;
   font-size: 0.9rem;
 }
+
+/* ---------- Auto Battle: game plan CTA + flowchart page ---------- */
+.auto-plan-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.25rem 0 1.25rem;
+}
+
+.auto-plan-link {
+  text-decoration: none;
+  border-color: rgba(123, 91, 255, 0.6);
+  background: rgba(123, 91, 255, 0.2);
+}
+
+.auto-plan-link:hover {
+  background: rgba(123, 91, 255, 0.35);
+}
+
+.auto-plan-hint {
+  color: #8b96c8;
+  font-size: 0.85rem;
+}
+
+.auto-plan-hint--center {
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.plan-page {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.plan-blue {
+  color: #00e0ff;
+}
+
+.plan-red {
+  color: #ff8bd8;
+}
+
+.plan-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.plan-badge {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(10, 15, 36, 0.6);
+  border: 1px solid rgba(123, 91, 255, 0.35);
+  color: #cdd5ff;
+}
+
+.plan-badge--blue {
+  border-color: rgba(0, 224, 255, 0.5);
+  color: #00e0ff;
+}
+
+.plan-bullets {
+  margin: 0.5rem 0 1.5rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: #dfe4ff;
+}
+
+.plan-chart {
+  background: rgba(5, 6, 15, 0.6);
+  border: 1px solid rgba(123, 91, 255, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.plan-mermaid {
+  display: flex;
+  justify-content: center;
+}
+
+.plan-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.plan-actions {
+  margin-top: 1.5rem;
+}

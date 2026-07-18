@@ -18,6 +18,8 @@ import { BattleStreams, Dex, toID } from "@pkmn/sim";
 import { ReasoningAI } from "./ai";
 import { FORMATS } from "./formats";
 import { installChampionsStats } from "./champions-stats";
+import { analyzeBluePlan } from "./game-plan-analyze";
+import type { PlanData } from "./game-plan";
 
 installChampionsStats(); // Reg M-B (Champions): 1 EV = +1 stat; idempotent.
 
@@ -223,6 +225,20 @@ export class AutoBattleController {
 
   getTally(): Tally {
     return this.snapshot();
+  }
+
+  /** Blue's game plan vs Red, derived from the run so far (best selection, learned threats). */
+  bluePlan(blueName: string, redName: string): PlanData {
+    return analyzeBluePlan({
+      blueTeamPacked: this.p1Team,
+      blueTeamName: blueName,
+      redTeamName: redName,
+      blueWins: this.counts.blue,
+      redWins: this.counts.red,
+      games: this.counts.games,
+      combos: sortByWinRate(this.comboBlue),
+      book: this.bookBlue,
+    });
   }
 
   private endActive() {
