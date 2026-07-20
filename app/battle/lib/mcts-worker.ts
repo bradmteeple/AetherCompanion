@@ -26,6 +26,7 @@ export interface WorkerGame {
 export type WorkerMsg =
   | WorkerGame
   | { type: "progress"; game: number; turn: number; sims: number }
+  | { type: "error"; message: string }
   | { type: "stopped" };
 
 type StartMsg = { type: "start"; p1Team: string; p2Team: string; formatid: string };
@@ -188,6 +189,7 @@ async function playOneGame(p1Team: string, p2Team: string, formatid: string): Pr
 }
 
 async function loop(p1Team: string, p2Team: string, formatid: string) {
+  let earlyFailures = 0; // throws before any game has ever completed → likely a bad team
   while (running) {
     try {
       const game = await playOneGame(p1Team, p2Team, formatid);
@@ -195,9 +197,15 @@ async function loop(p1Team: string, p2Team: string, formatid: string) {
       games++;
       post(game);
     } catch (err) {
-      // One bad game must not kill the worker; surface it and carry on.
+      // A one-off mid-game throw shouldn't kill a healthy run, but if games never start at all
+      // (e.g. a team the sim can't build), surface it and stop instead of spinning silently.
       // eslint-disable-next-line no-console
       console.error("[mcts-worker] game error:", (err as Error)?.stack || err);
+      if (games === 0 && ++earlyFailures >= 2) {
+        running = false;
+        post({ type: "error", message: (err as Error)?.message || "Couldn't run this matchup." });
+        break;
+      }
     }
     await tick();
   }
