@@ -36,6 +36,7 @@ export interface Tally {
   topRed: ComboStat[]; // Red's top winning 4-of-6 selections
   replayMin: number | null; // smallest game number still available to replay (null if none)
   replayMax: number | null; // latest game number available to replay
+  error: string | null; // set if the worker couldn't run the matchup (e.g. an unrunnable team)
 }
 
 export type GameResult = "blue" | "red" | "tie";
@@ -92,6 +93,7 @@ export class AutoBattleController {
   private counts = { blue: 0, red: 0, ties: 0, games: 0 };
   private turn = 0;
   private sims = 0;
+  private lastError: string | null = null;
   private readonly bookBlue: Book = {}; // Blue's learned model of Red (for the game plan)
   private readonly bookRed: Book = {};
   private readonly comboBlue = new Map<string, { games: number; wins: number }>();
@@ -124,6 +126,7 @@ export class AutoBattleController {
   start() {
     if (this.destroyed || this.running) return;
     this.running = true;
+    this.lastError = null;
     const w = this.ensureWorker();
     w.postMessage({ type: "start", p1Team: this.p1Team, p2Team: this.p2Team, formatid: this.formatid });
     this.emit(true);
@@ -141,6 +144,7 @@ export class AutoBattleController {
     this.counts = { blue: 0, red: 0, ties: 0, games: 0 };
     this.turn = 0;
     this.sims = 0;
+    this.lastError = null;
     for (const k of Object.keys(this.bookBlue)) delete this.bookBlue[k];
     for (const k of Object.keys(this.bookRed)) delete this.bookRed[k];
     this.comboBlue.clear();
@@ -194,6 +198,10 @@ export class AutoBattleController {
     } else if (msg.type === "game") {
       this.recordGame(msg);
       this.emit(false);
+    } else if (msg.type === "error") {
+      this.lastError = msg.message;
+      this.running = false;
+      this.emit(true);
     } else if (msg.type === "stopped") {
       this.emit(true);
     }
@@ -249,6 +257,7 @@ export class AutoBattleController {
       topRed: sortByWinRate(this.comboRed),
       replayMin: this.replays[0]?.n ?? null,
       replayMax: this.replays[this.replays.length - 1]?.n ?? null,
+      error: this.lastError,
     };
   }
 

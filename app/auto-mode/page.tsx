@@ -8,6 +8,8 @@ import type { ActiveMon, BoardState } from "../battle/lib/protocol";
 import { encodePlan } from "../battle/lib/game-plan";
 import { pokeSprite, pokeThumb } from "../battle/lib/sprites";
 import { REG_MB_TEAMS, teamById } from "../battle/lib/reg-mb-teams";
+import { FORMATS } from "../battle/lib/formats";
+import type { LoadedTeam } from "../battle/lib/pokepaste";
 
 interface Replay {
   n: number;
@@ -30,10 +32,18 @@ const ZERO: Tally = {
   topRed: [],
   replayMin: null,
   replayMax: null,
+  error: null,
 };
 
 const DEFAULT_BLUE = REG_MB_TEAMS[0]?.id ?? "";
 const DEFAULT_RED = (REG_MB_TEAMS[1] ?? REG_MB_TEAMS[0])?.id ?? "";
+
+// A short label for an uploaded team, or null when a side uses its preset dropdown.
+function uploadLabel(team: LoadedTeam | null): string | null {
+  if (!team) return null;
+  const shown = team.species.slice(0, 2).join(" / ");
+  return `Custom · ${shown}${team.species.length > 2 ? "…" : ""}`;
+}
 
 export default function AutoMode() {
   const [running, setRunning] = useState(false);
@@ -41,6 +51,8 @@ export default function AutoMode() {
   const [tally, setTally] = useState<Tally>(ZERO);
   const [blueId, setBlueId] = useState(DEFAULT_BLUE);
   const [redId, setRedId] = useState(DEFAULT_RED);
+  const [blueUpload, setBlueUpload] = useState<LoadedTeam | null>(null); // uploaded team overrides preset
+  const [redUpload, setRedUpload] = useState<LoadedTeam | null>(null);
   const [planUrl, setPlanUrl] = useState<string | null>(null);
   const [replayNum, setReplayNum] = useState<string>(""); // the battle number typed in
   const [replay, setReplay] = useState<Replay | null>(null); // the battle currently shown
@@ -62,6 +74,11 @@ export default function AutoMode() {
     };
   }, []);
 
+  // If the worker reports it can't run the matchup, stop the UI's running state too.
+  useEffect(() => {
+    if (tally.error) setRun(false);
+  }, [tally.error, setRun]);
+
   // The controller stays alive across Stop/Start so power/learning persist (they must only ever
   // ramp up). Changing a team (or unmounting) tears it down; a fresh one is built on next Start.
   useEffect(() => {
@@ -76,7 +93,7 @@ export default function AutoMode() {
       controllerRef.current?.destroy();
       controllerRef.current = null;
     };
-  }, [blueId, redId, setRun]);
+  }, [blueId, redId, blueUpload, redUpload, setRun]);
 
   // Start creates the engine lazily on click (the @pkmn chunk is large — never gate the button
   // behind it). The button flips to running immediately; the loop begins once the chunk loads.
@@ -91,8 +108,9 @@ export default function AutoMode() {
         const { AutoBattleController } = await import("../battle/lib/auto-engine");
         if (!aliveRef.current) return;
         if (!controllerRef.current) {
-          const p1Team = teamById(blueId)?.packed;
-          const p2Team = teamById(redId)?.packed;
+          // An uploaded team overrides that side's preset dropdown.
+          const p1Team = blueUpload?.packed ?? teamById(blueId)?.packed;
+          const p2Team = redUpload?.packed ?? teamById(redId)?.packed;
           if (!p1Team || !p2Team) {
             setRun(false);
             return;
@@ -110,7 +128,7 @@ export default function AutoMode() {
     } finally {
       setLoading(false);
     }
-  }, [blueId, redId, setRun]);
+  }, [blueId, redId, blueUpload, redUpload, setRun]);
 
   const stop = useCallback(() => {
     const c = controllerRef.current;
@@ -158,8 +176,8 @@ export default function AutoMode() {
     setReplay({ n: g.n, result: g.result, frames: buildReplayFrames(g.lines) });
   }, [replayNum]);
 
-  const blueName = teamById(blueId)?.name ?? "—";
-  const redName = teamById(redId)?.name ?? "—";
+  const blueName = uploadLabel(blueUpload) ?? teamById(blueId)?.name ?? "—";
+  const redName = uploadLabel(redUpload) ?? teamById(redId)?.name ?? "—";
   const decided = tally.blue + tally.red;
   const bluePct = decided ? Math.round((tally.blue / decided) * 100) : 0;
   const redPct = decided ? 100 - bluePct : 0;
@@ -182,7 +200,7 @@ export default function AutoMode() {
           <select
             className="auto-team-select"
             value={blueId}
-            disabled={running}
+            disabled={running || !!blueUpload}
             onChange={(e) => setBlueId(e.target.value)}
           >
             {REG_MB_TEAMS.map((t) => (
@@ -198,7 +216,7 @@ export default function AutoMode() {
           <select
             className="auto-team-select"
             value={redId}
-            disabled={running}
+            disabled={running || !!redUpload}
             onChange={(e) => setRedId(e.target.value)}
           >
             {REG_MB_TEAMS.map((t) => (
@@ -208,6 +226,25 @@ export default function AutoMode() {
             ))}
           </select>
         </label>
+      </div>
+
+      <div className="auto-uploads">
+        <TeamUpload
+          accent="blue"
+          label="Blue"
+          team={blueUpload}
+          disabled={running}
+          onLoad={setBlueUpload}
+          onClear={() => setBlueUpload(null)}
+        />
+        <TeamUpload
+          accent="red"
+          label="Red"
+          team={redUpload}
+          disabled={running}
+          onLoad={setRedUpload}
+          onClear={() => setRedUpload(null)}
+        />
       </div>
 
       <div className="auto-controls">
@@ -268,6 +305,10 @@ export default function AutoMode() {
           </form>
         )}
       </div>
+
+      {tally.error && (
+        <p className="auto-replay-error auto-plan-hint--center">Couldn&apos;t run this matchup: {tally.error}</p>
+      )}
 
       {!running && tally.replayMax != null && (
         <p className="auto-replay-hint auto-plan-hint--center">
@@ -338,6 +379,150 @@ export default function AutoMode() {
         clears the tally and starts over.
       </p>
     </div>
+  );
+}
+
+function UploadThumb({ name }: { name: string }) {
+  const url = pokeThumb(name);
+  if (!url) return null;
+  return (
+    <img
+      className="mon-thumb"
+      src={url}
+      alt=""
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
+    />
+  );
+}
+
+// Paste/upload a custom team for one side. A team is only accepted once it validates as Reg M-B
+// legal; problems are shown and the team is not used until fixed. Reuses the Battle tab's import
+// pipeline (pokepaste.ts) and the shared .custom-team / .ct-* styles.
+function TeamUpload({
+  accent,
+  label,
+  team,
+  disabled,
+  onLoad,
+  onClear,
+}: {
+  accent: "blue" | "red";
+  label: string;
+  team: LoadedTeam | null;
+  disabled: boolean;
+  onLoad: (t: LoadedTeam) => void;
+  onClear: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const load = useCallback(
+    async (input: string) => {
+      const trimmed = input.trim();
+      if (!trimmed) return;
+      setBusy(true);
+      setError(null);
+      setProblems([]);
+      try {
+        const { looksLikeUrl, fetchPokepaste, importTeamValidated } = await import(
+          "../battle/lib/pokepaste"
+        );
+        const raw = looksLikeUrl(trimmed) ? await fetchPokepaste(trimmed) : trimmed;
+        const res = importTeamValidated(raw, FORMATS.vgcregmb.engineFormat);
+        if (!res) {
+          setError("Couldn't read a team from that — check the paste or export text.");
+          return;
+        }
+        if (res.problems.length) {
+          setProblems(res.problems);
+          return; // not accepted until legal
+        }
+        onLoad({ packed: res.packed, species: res.species });
+        setText("");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load that team.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [onLoad]
+  );
+
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const t = String(reader.result || "");
+      setText(t);
+      void load(t);
+    };
+    reader.readAsText(file);
+  };
+
+  if (team) {
+    return (
+      <aside className={"custom-team-panel auto-upload auto-upload--" + accent}>
+        <div className="ct-title">{label} — uploaded team</div>
+        <ul className="ct-list">
+          {team.species.map((s, i) => (
+            <li key={i}>
+              <UploadThumb name={s} />
+              <span>{s}</span>
+            </li>
+          ))}
+        </ul>
+        <button className="battle-btn battle-btn--ghost" disabled={disabled} onClick={onClear}>
+          Clear (use preset)
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className={"custom-team-panel auto-upload auto-upload--" + accent}>
+      <div className="ct-title">{label} — upload a team</div>
+      <textarea
+        className="ct-input"
+        rows={3}
+        placeholder="Paste a PokePaste URL — or the team's export text"
+        value={text}
+        disabled={disabled || busy}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="auto-upload-actions">
+        <button className="battle-btn" disabled={disabled || busy || !text.trim()} onClick={() => load(text)}>
+          {busy ? "Loading…" : "Load team"}
+        </button>
+        <button
+          type="button"
+          className="battle-btn battle-btn--ghost"
+          disabled={disabled || busy}
+          onClick={() => fileRef.current?.click()}
+        >
+          Upload .txt
+        </button>
+        <input ref={fileRef} type="file" accept=".txt,.text,text/plain" hidden onChange={onFile} />
+      </div>
+      <p className="ct-note">Must be Reg M-B legal (66-EV budget, no Restricted Legendaries). Overrides the {label} dropdown.</p>
+      {error && <p className="ct-error">{error}</p>}
+      {problems.length > 0 && (
+        <div className="ct-error auto-upload-problems">
+          <div>Not Reg M-B legal — fix and reload:</div>
+          <ul>
+            {problems.slice(0, 6).map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </aside>
   );
 }
 

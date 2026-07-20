@@ -1056,6 +1056,52 @@ body {
   margin-top: 1.5rem;
 }
 
+/* Per-side custom team upload (reuses the .custom-team-panel / .ct-* styles). */
+.auto-uploads {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.9rem auto 0.25rem;
+  max-width: 780px;
+  text-align: left;
+}
+
+.auto-upload {
+  flex: 1 1 320px;
+  max-width: 370px;
+  margin: 0;
+}
+
+.auto-upload--blue {
+  border-color: rgba(110, 168, 255, 0.4);
+}
+
+.auto-upload--red {
+  border-color: rgba(255, 122, 138, 0.4);
+}
+
+.auto-upload-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.auto-upload-problems {
+  margin-top: 0.5rem;
+}
+
+.auto-upload-problems ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.auto-upload-problems li {
+  margin: 0.1rem 0;
+}
+
 .auto-team-field {
   display: flex;
   flex-direction: column;
