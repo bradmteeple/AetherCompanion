@@ -130,9 +130,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--method",
         type=str,
-        default="bc",
-        help="method string for checkpoint directory, e.g. bc_do_xm. Defaults to "
-        "'bc' (uses/downloads the behavior-cloning model). Ignored at Level 1.",
+        default="auto",
+        help="checkpoint method. Default 'auto' picks the best available for the "
+        "adaptive tiers: your adapted model (ex), else the Auto Battle foundation "
+        "(bc_sp), else the downloaded BC model. Pass an explicit method to override. "
+        "Ignored at Level 1.",
     )
     parser.add_argument(
         "--num_teams",

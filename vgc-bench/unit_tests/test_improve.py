@@ -1,15 +1,15 @@
 """
-Unit tests for vgc_bench.improve (self-improvement orchestrator).
+Unit tests for vgc_bench.improve (adaptation orchestrator).
 
 Dependency-light: improve.py shells out to the training entry points and never
-imports torch/poke_env itself, so its path/seeding logic can be validated
-anywhere. Foundation and adaptation save-dirs must match the layout train.py
-builds (method tag "bc" + LearningStyle.abbrev; exploiter -> "ex").
+imports torch/poke_env itself. It adapts on top of the Auto Battle foundation
+(method "bc_sp") and writes the adapted policy under "ex".
 """
 
 from pathlib import Path
 
-from vgc_bench.improve import ADAPT_METHOD, FOUNDATION_STYLES, _has_learner_checkpoint
+from vgc_bench.autobattle import AUTO_BATTLE_METHOD
+from vgc_bench.improve import ADAPT_METHOD, _has_learner_checkpoint
 from vgc_bench.src.levels import method_save_dir, resolve_latest_checkpoint
 
 
@@ -17,25 +17,18 @@ class TestMethods:
     def test_adapt_method_is_exploiter(self):
         assert ADAPT_METHOD == "ex"
 
-    def test_foundation_styles_are_selfplay_family(self):
-        # Two bots playing each other: pure self-play and the population variants.
-        assert FOUNDATION_STYLES["self_play"] == "bc_sp"
-        assert FOUNDATION_STYLES["double_oracle"] == "bc_do"
-        assert FOUNDATION_STYLES["fictitious_play"] == "bc_fp"
+    def test_foundation_is_auto_battle_self_play(self):
+        assert AUTO_BATTLE_METHOD == "bc_sp"
 
 
 class TestSaveDirs:
     def test_foundation_dir_layout(self):
-        d = method_save_dir("results", FOUNDATION_STYLES["self_play"], "mb", 4, 2)
+        d = method_save_dir("results", AUTO_BATTLE_METHOD, "mb", 4, 2)
         assert d == Path("results/saves_bc_sp/reg_mb/4_teams/seed2")
 
     def test_adapt_dir_layout(self):
         d = method_save_dir("results", ADAPT_METHOD, "mb", None, 1)
         assert d == Path("results/saves_ex/reg_mb/seed1")
-
-    def test_multi_reg_uses_reg_all(self):
-        d = method_save_dir("results", ADAPT_METHOD, None, None, 3)
-        assert d == Path("results/saves_ex/reg_all/seed3")
 
 
 class TestLearnerCheckpointDetection:
@@ -51,7 +44,6 @@ class TestLearnerCheckpointDetection:
         assert _has_learner_checkpoint(tmp_path / "saves_ex" / "reg_mb" / "seed1")
 
     def test_ignores_fixed_opponent_only(self, tmp_path):
-        # Only the -1.zip fixed opponent present -> not a learner checkpoint yet.
         self._dir(tmp_path, [-1])
         assert not _has_learner_checkpoint(tmp_path / "saves_ex" / "reg_mb" / "seed1")
 

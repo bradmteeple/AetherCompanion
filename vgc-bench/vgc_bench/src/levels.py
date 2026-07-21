@@ -170,6 +170,52 @@ def resolve_latest_checkpoint(
     return max(checkpoints, key=lambda p: _int_stem(p))
 
 
+# Preference order for the adaptive tiers when ``method="auto"``: the policy
+# adapted to your games first, then the Auto Battle self-play foundation. If
+# neither exists yet, the published BC model is downloaded as a starting point.
+ADAPTIVE_METHODS = ["ex", "bc_sp"]
+
+
+def latest_timestep(
+    results_path: str | Path,
+    method: str,
+    reg: str | None,
+    num_teams: int | None,
+    run_id: int,
+) -> int:
+    """
+    Highest non-negative checkpoint number for a run, or 0 if none exist.
+
+    Used by Auto Battle to keep extending self-play training from wherever it
+    left off (each round trains toward ``latest + increment``).
+    """
+    d = method_save_dir(results_path, method, reg, num_teams, run_id)
+    best = 0
+    if d.is_dir():
+        for p in d.iterdir():
+            if p.suffix == ".zip":
+                s = _int_stem(p)
+                if s is not None and s >= 0:
+                    best = max(best, s)
+    return best
+
+
+def first_available_checkpoint(
+    results_path: str | Path,
+    methods: list[str],
+    reg: str | None,
+    num_teams: int | None,
+    run_id: int,
+) -> Path | None:
+    """Return the latest checkpoint for the first method that has one, else None."""
+    for method in methods:
+        try:
+            return resolve_latest_checkpoint(results_path, method, reg, num_teams, run_id)
+        except (FileNotFoundError, IndexError):
+            continue
+    return None
+
+
 def _resolve_or_download_checkpoint(
     results_path: str | Path,
     method: str,
@@ -178,12 +224,21 @@ def _resolve_or_download_checkpoint(
     run_id: int,
 ) -> Path:
     """
-    Find the latest local checkpoint, or fall back to the HuggingFace BC model.
+    Resolve a checkpoint for a player, or fall back to the HuggingFace BC model.
 
-    When no local checkpoint exists yet and ``method == "bc"``, download the
-    published behavior-cloning policy so Levels 2 and 3 work out of the box
-    before any local training has happened.
+    ``method="auto"`` picks the best adaptive checkpoint available (see
+    ``ADAPTIVE_METHODS``): the policy adapted to your games, else the Auto Battle
+    self-play foundation. When nothing local exists (or ``method == "bc"``), the
+    published behavior-cloning policy is downloaded so the tiers work out of the
+    box before any local training has happened.
     """
+    if method == "auto":
+        ckpt = first_available_checkpoint(
+            results_path, ADAPTIVE_METHODS, reg, num_teams, run_id
+        )
+        if ckpt is not None:
+            return ckpt
+        method = "bc"
     try:
         return resolve_latest_checkpoint(results_path, method, reg, num_teams, run_id)
     except (FileNotFoundError, IndexError):
