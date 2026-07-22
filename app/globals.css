@@ -752,6 +752,19 @@ body {
   box-shadow: 0 0 16px rgba(255, 78, 205, 0.25);
 }
 
+/* Levels 1-2 are locked out when a custom team is loaded (custom → Level 3 Monte Carlo). */
+.level-btn--locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* The "custom teams → Reg M-B / Level 3" lock note. */
+.format-note--lock {
+  color: #b79bff;
+  font-weight: 600;
+}
+
 .level-tip {
   width: 240px;
   max-width: 240px;

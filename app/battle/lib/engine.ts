@@ -140,9 +140,12 @@ export function selectTeams(def: FormatDef, custom?: CustomTeam): SelectedTeams 
   if (custom) {
     const p1Sets = custom.playerTeam ? Teams.unpack(custom.playerTeam) ?? [] : Teams.generate("gen9randombattle");
     const p2Sets = custom.aiTeam ? Teams.unpack(custom.aiTeam) ?? [] : Teams.generate("gen9randombattle");
-    const p1 = custom.playerTeam ?? Teams.pack(p1Sets);
-    const p2 = custom.aiTeam ?? Teams.pack(p2Sets);
-    return { p1, p2, p1Sets, p2Sets };
+    // Custom teams always play as Reg M-B (Lv 50 doubles). The `Adjust Level` rule is validator-only
+    // and never runs on the stream path, so force level 50 on every set here and repack — this also
+    // keeps the Champions level-50 stat formula (champions-stats.ts) correct.
+    for (const s of p1Sets) s.level = 50;
+    for (const s of p2Sets) s.level = 50;
+    return { p1: Teams.pack(p1Sets), p2: Teams.pack(p2Sets), p1Sets, p2Sets };
   }
   if (def.packedTeams?.length) {
     const pool = def.packedTeams;
@@ -258,14 +261,11 @@ export class BattleController {
     this.snapshot.log.push(line);
   }
 
-  // Effective engine format: a custom AI team plays under a no-validation Custom Game.
-  // Team Preview is disabled so the battle starts straight away with default lead order.
+  // Effective engine format. Custom (pasted) teams always play as VGC 2026 Reg M-B: Lv 50 doubles,
+  // Team Preview (bring 4 of 6), Champions stats, Terastal off. The sim's stream path never runs the
+  // TeamValidator, so an arbitrary paste is accepted as-is under this ruleset (nothing is rejected).
   private engineFormatId(): string {
-    if (this.custom) {
-      return this.custom.doubles
-        ? "gen9doublescustomgame@@@!Team Preview"
-        : "gen9customgame@@@!Team Preview";
-    }
+    if (this.custom) return FORMATS.vgcregmb.engineFormat;
     return this.def.engineFormat;
   }
 

@@ -40,10 +40,6 @@ export default function BattlePage() {
   const logEndRef = useRef<HTMLDivElement | null>(null);
   const chooseRef = useRef<((choice: string) => void) | null>(null);
 
-  // Both custom teams are always assumed to be for the currently selected format,
-  // so their singles/doubles nature follows that format rather than a manual toggle.
-  const selectedDoubles = FORMATS[selectedFormat].gametype === "doubles";
-
   // Switching formats clears any loaded custom team — a team pasted for one
   // format shouldn't silently carry over into a different one.
   const selectFormat = useCallback(
@@ -54,6 +50,29 @@ export default function BattlePage() {
       setPlayerTeam(null);
     },
     [selectedFormat]
+  );
+
+  // A pasted team is loaded on either side. Custom teams ALWAYS play as VGC 2026 Reg M-B with the
+  // Level 3 Monte Carlo AI (Lv 50 doubles, Team Preview / bring 4 of 6 — you pick your 4, the AI picks
+  // its 4 by search), so loading a team locks the format to Reg M-B and the level to 3.
+  const hasCustom = !!(customTeam || playerTeam);
+  const lockCustomFormat = useCallback(() => {
+    setSelectedFormat("vgcregmb");
+    setSelectedLevel(3);
+  }, []);
+  const loadPlayerTeam = useCallback(
+    (t: { packed: string; species: string[] }) => {
+      setPlayerTeam(t);
+      lockCustomFormat();
+    },
+    [lockCustomFormat]
+  );
+  const loadAiTeam = useCallback(
+    (t: { packed: string; species: string[] }) => {
+      setCustomTeam(t);
+      lockCustomFormat();
+    },
+    [lockCustomFormat]
   );
 
   useEffect(() => {
@@ -83,17 +102,21 @@ export default function BattlePage() {
   const startBattle = useCallback(async () => {
     const custom: CustomTeam | undefined =
       customTeam || playerTeam
-        ? { aiTeam: customTeam?.packed, playerTeam: playerTeam?.packed, doubles: selectedDoubles }
+        ? { aiTeam: customTeam?.packed, playerTeam: playerTeam?.packed, doubles: true }
         : undefined;
-    setRunningFormat(selectedFormat);
-    setRunningLevel(selectedLevel);
+    // Custom teams always run as Reg M-B with the Level 3 Monte Carlo AI (the UI already locks both,
+    // this just makes it authoritative at start).
+    const format: FormatKey = custom ? "vgcregmb" : selectedFormat;
+    const level = custom ? 3 : selectedLevel;
+    setRunningFormat(format);
+    setRunningLevel(level);
     setRunningCustom(custom);
 
     // Level 3 + chart toggle on: pick the teams now and let the player set a matchup chart before the
     // battle begins (the chart biases the Monte Carlo search). Otherwise Level 3 goes straight to pure MCTS.
-    if (selectedLevel === 3 && useChart) {
+    if (level === 3 && useChart) {
       const { selectTeams } = await import("./lib/engine");
-      const preTeams = selectTeams(FORMATS[selectedFormat], custom);
+      const preTeams = selectTeams(FORMATS[format], custom);
       setStarted(false); // tear down any battle in progress while the chart is filled in
       setSnapshot(null);
       setMatchupState(emptyMatchup());
@@ -108,7 +131,7 @@ export default function BattlePage() {
     setRunningOpts(undefined);
     setStarted(true);
     setBattleKey((k) => k + 1);
-  }, [selectedFormat, selectedLevel, customTeam, playerTeam, selectedDoubles, useChart]);
+  }, [selectedFormat, selectedLevel, customTeam, playerTeam, useChart]);
 
   const beginBattle = useCallback(() => {
     if (!matchupStep) return;
@@ -127,18 +150,14 @@ export default function BattlePage() {
           title="Your Team"
           owner="You"
           team={playerTeam}
-          formatLabel={FORMATS[selectedFormat].label}
-          doubles={selectedDoubles}
-          onLoad={setPlayerTeam}
+          onLoad={loadPlayerTeam}
           onClear={() => setPlayerTeam(null)}
         />
         <CustomTeamPanel
           title="Rival AI Team"
           owner="The Rival AI"
           team={customTeam}
-          formatLabel={FORMATS[selectedFormat].label}
-          doubles={selectedDoubles}
-          onLoad={setCustomTeam}
+          onLoad={loadAiTeam}
           onClear={() => setCustomTeam(null)}
         />
       </div>
@@ -172,25 +191,38 @@ export default function BattlePage() {
             label: "3 · Adaptive",
             tip: "Thinks with a Monte Carlo search: it plays the game out to its endgames, steers toward the best winning line, and learns your tendencies (including your reads) to play against you. Takes up to ~15s per move.",
           },
-        ].map((lvl) => (
-          <button
-            key={lvl.n}
-            className={
-              "level-btn" +
-              (selectedLevel === lvl.n ? " level-btn--on" : "") +
-              (lvl.tip ? " has-pop" : "")
-            }
-            onClick={() => setSelectedLevel(lvl.n)}
-          >
-            {lvl.label}
-            {lvl.tip && (
-              <span className="stat-tooltip level-tip" role="tooltip">
-                <span className="tip-text">{lvl.tip}</span>
-              </span>
-            )}
-          </button>
-        ))}
+        ].map((lvl) => {
+          // Custom teams always use the Level 3 Monte Carlo AI, so lock the lower levels out.
+          const locked = hasCustom && lvl.n !== 3;
+          return (
+            <button
+              key={lvl.n}
+              className={
+                "level-btn" +
+                (selectedLevel === lvl.n ? " level-btn--on" : "") +
+                (locked ? " level-btn--locked" : "") +
+                (lvl.tip ? " has-pop" : "")
+              }
+              disabled={locked}
+              onClick={() => setSelectedLevel(lvl.n)}
+            >
+              {lvl.label}
+              {lvl.tip && (
+                <span className="stat-tooltip level-tip" role="tooltip">
+                  <span className="tip-text">{lvl.tip}</span>
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      {hasCustom && (
+        <p className="format-note format-note--lock">
+          Custom teams always play under VGC 2026 Reg M-B (Lv 50 doubles, bring 4 of 6) with the Level 3
+          Monte Carlo AI — you pick your 4, the AI picks its 4 by search.
+        </p>
+      )}
 
       {selectedLevel === 3 && (
         <label className="chart-toggle">
@@ -381,16 +413,12 @@ function CustomTeamPanel({
   title,
   owner,
   team,
-  formatLabel,
-  doubles,
   onLoad,
   onClear,
 }: {
   title: string;
   owner: string; // who plays this team, e.g. "You" or "The Rival AI"
   team: { packed: string; species: string[] } | null;
-  formatLabel: string;
-  doubles: boolean;
   onLoad: (t: { packed: string; species: string[] }) => void;
   onClear: () => void;
 }) {
@@ -426,8 +454,8 @@ function CustomTeamPanel({
       {team ? (
         <>
           <p className="ct-note">
-            {owner} will use this custom team ({team.species.length}) for {formatLabel} (
-            {doubles ? "Doubles" : "Singles"}).
+            {owner} will bring 4 of these {team.species.length} under VGC 2026 Reg M-B (Lv 50 doubles,
+            Team Preview).
           </p>
           <ul className="ct-list">
             {team.species.map((s, i) => (
@@ -451,8 +479,8 @@ function CustomTeamPanel({
             onChange={(e) => setText(e.target.value)}
           />
           <p className="ct-note">
-            {owner} will use this team for {formatLabel} ({doubles ? "Doubles" : "Singles"}). Changing
-            the format clears it.
+            Loading a team locks the battle to VGC 2026 Reg M-B (Lv 50 doubles, bring 4 of 6) with the
+            Level 3 Monte Carlo AI. Changing the format clears it.
           </p>
           <button className="battle-btn" disabled={busy || !text.trim()} onClick={load}>
             {busy ? "Loading…" : "Load Team"}
